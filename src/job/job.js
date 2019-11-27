@@ -12,6 +12,12 @@ module.exports.init = function (app) {
     app.route(API.SUBMISSION_LISTING).get(getSubmission);
     app.route(API.SUBMISSION_DELETE).post(deleteSubmission);
     app.route(API.SUBMISSION_PROGRESS_UPDATE).post(updateSubmissionProgress);
+    app.route(API.COMPANY).get(getCompany)
+    app.route(API.COMPANY_UPDATE).post(updateCompany);
+    app.route(API.COMPANY_ADD).post(addCompany);
+    app.route(API.COMPANY_DELETE).post(deleteCompany);
+    app.route(API.POSITION_SUBMIT).post(addPositionAndSubmission);
+
 };
 
 function applyJob(req, res){
@@ -181,6 +187,59 @@ function getSubmission(req, res){
     })
 }
 
+function addPositionAndSubmission(req, res){
+    let pool = engine.getPool();
+    const body = req.body;
+    const name = body.name;
+    const description = body.description;
+    const company_id = body.company_id;
+    const position_type = body.position_type;
+    const posted_time = body.posted_time;
+    const deadline = body.deadline;
+    const location = body.location;
+    const user_created = body.user_created;
+    let jsonResult = {};
+    pool.getConnection(function(err, con){
+        if (err){
+            res.json({error: err});
+        } else {
+            const insertPositionQuery = `insert into ${table.position}(name, description, company_id, application, position_type, posted_time,deadline, location, user_created) value 
+            ('${name}', '${description}', ${company_id}, 1, ${position_type}, '${posted_time}', '${deadline}', '${location}' ,${user_created})`;
+            const insertSubmissionQuery = `insert into ${table.submission}(user_id, position_id) value(${user_created}, LAST_INSERT_ID())`;
+            const insertProgressQuery = `insert into ${table.application_progress}(submission_id, progress_description, create_time, progress_type) 
+            value(LAST_INSERT_ID(), "No description", NOW(), 1)`;
+            async.waterfall([
+                // insert position
+                function(callback){
+                    con.query(insertPositionQuery, function(err){
+                        callback(err);
+                    })
+                },
+                // insert submission
+                function(callback){
+                    con.query(insertSubmissionQuery, function(err){
+                        callback(err);
+                    })
+                },
+                // insert progress
+                function(callback){
+                    con.query(insertProgressQuery, function(err){
+                        callback(err);
+                    })
+                },   
+            ], function(err){
+                if (err){
+                    jsonResult.error = err;
+                } else {
+                    jsonResult.result = "OK";
+                }
+                res.json(jsonResult);
+                con.release();
+            })
+        }
+    })
+}
+
 /** get list of jobs */
 function getJob(req, res){
     let pool = engine.getPool();
@@ -196,7 +255,8 @@ function getJob(req, res){
                 ORDER BY RAND()
                 LIMIT ${limit}) AS p
             LEFT JOIN ${table.company} AS c ON p.company_id = c.id
-            LEFT JOIN ${table.position_type} AS t ON p.position_type = t.id`;
+            LEFT JOIN ${table.position_type} AS t ON p.position_type = t.id
+            where p.user_created = 0 and c.user_created = 0`;
             // Execute query
             con.query(sql, function (err, result2) {
                 if (err)
@@ -210,4 +270,73 @@ function getJob(req, res){
     });
 
 
+}
+
+function getCompany(req, res){
+    let pool = engine.getPool();
+    let user_id = req.query.user_id;
+    let jsonResult = {};
+    pool.query(`select * from ${table.company} where user_created = 0 or user_created = ${user_id}`, (err , result) => {
+        if (err){
+            jsonResult.error = err;
+        } else {
+            jsonResult.result = result;
+        }
+        res.json(jsonResult);
+    })
+}
+
+function updateCompany(req, res){
+    let pool = engine.getPool();
+    const name = req.body.name;
+    const image_url = req.body.image_url;
+    const description = req.body.description;
+    const id = req.body.id;
+    let jsonResult = {};
+    let sqlQuery = `update ${table.company} set name = '${name}', image_url = '${image_url}', description = '${description}' where id = ${id}`
+    pool.query(sqlQuery, (err) => {
+        if (err){
+            jsonResult.error = err;
+        } else {
+            jsonResult.result = "OK";
+        }
+        res.json(jsonResult);
+    });
+}
+
+function addCompany(req, res){
+    let pool = engine.getPool();
+    const user_id = req.query.user_id;
+    const name = req.body.name;
+    const image_url = req.body.image_url;
+    const description = req.body.description;
+    const id = req.body.id;
+    let jsonResult = {};
+    let sqlQuery = `insert into ${table.company}(name, description, image_url, user_created) value 
+    ('${name}', '${description}', '${image_url}', ${user_id})`;
+    pool.query(sqlQuery, (err ) => {
+        if (err){
+            jsonResult.error = err;
+        } else {
+            jsonResult.result = "OK";
+        }
+        res.json(jsonResult);
+    });
+    
+}
+
+function deleteCompany(req, res){
+    let pool = engine.getPool();
+    const id = req.query.company_id;
+    const user_id = req.query.user_id;
+    let jsonResult = {};
+    let sqlQuery = `delete from ${table.company} where id = ${id} and user_created = ${user_id}`;
+    pool.query(sqlQuery, (err) => {
+        if (err){
+            jsonResult.error = err;
+        } else {
+            jsonResult.result = "OK";
+        }
+        res.json(jsonResult);
+    });
 }

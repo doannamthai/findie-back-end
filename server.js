@@ -24,6 +24,10 @@ auth.init(app);
 var statistic = require("./src/statistic/statistic");
 statistic.init(app);
 
+/** Profile */
+var profile = require("./src/profile/profile");
+profile.init(app);
+
 app.listen(port, () => {
  console.log("Server running on port 3000");
 });
