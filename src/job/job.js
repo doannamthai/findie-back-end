@@ -8,6 +8,7 @@ module.exports.init = function (app) {
     app.route(API.JOB_LISTING)
         .get(getJob);
     app.route(API.JOB_APPLY)
+        .get(isApplied)
         .post(applyJob);
     app.route(API.SUBMISSION_LISTING).get(getSubmission);
     app.route(API.SUBMISSION_DELETE).post(deleteSubmission);
@@ -17,8 +18,27 @@ module.exports.init = function (app) {
     app.route(API.COMPANY_ADD).post(addCompany);
     app.route(API.COMPANY_DELETE).post(deleteCompany);
     app.route(API.POSITION_SUBMIT).post(addPositionAndSubmission);
+    app.route(API.POSITION_TYPE).get(getPositionType);
 
 };
+
+function isApplied(req, res){
+    let pool = engine.getPool();
+    let user_id = req.query.user_id;
+    let position_id = req.query.position_id;
+    var jsonResult = {};
+    pool.query(`select count(1) as c from ${table.submission} where user_id = ${user_id} and position_id=${position_id}`, (err, result) => {
+        if (err){
+            res.json({error: err});
+        } else {
+            if (result[0].c == 0){
+                res.json({result: false});
+            } else {
+                res.json({result: true});
+            }
+        }
+    })
+}
 
 function applyJob(req, res){
     let pool = engine.getPool();
@@ -245,13 +265,15 @@ function getJob(req, res){
     let pool = engine.getPool();
     var jsonResult = {};
     let limit = req.query.limit == undefined || req.query.limit == "null"? 10 : req.query.limit;
+    let keyword = !req.query.keyword ||  req.query.keyword == "null" ? null : req.query.keyword;
     pool.getConnection(function(err, con){
         if (err){
             jsonResult.error = err;
             res.json(jsonResult);
         } else {
             var sql = `select p.id, p.name AS position_name, p.description, p.location, p.application, p.posted_time, p.deadline, t.type_name, c.name As company_name, c.image_url from
-              (select * from ${table.position}
+              (select * from ${table.position} as pos
+                ${keyword ? `WHERE pos.name LIKE '%${keyword}%'`: ''}
                 ORDER BY RAND()
                 LIMIT ${limit}) AS p
             LEFT JOIN ${table.company} AS c ON p.company_id = c.id
@@ -270,6 +292,19 @@ function getJob(req, res){
     });
 
 
+}
+
+function getPositionType(req, res){
+    let pool = engine.getPool();
+    let jsonResult = {};
+    pool.query(`select * from ${table.position_type}`, (err , result) => {
+        if (err){
+            jsonResult.error = err;
+        } else {
+            jsonResult.result = result;
+        }
+        res.json(jsonResult);
+    })
 }
 
 function getCompany(req, res){

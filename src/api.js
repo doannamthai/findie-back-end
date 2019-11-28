@@ -15,7 +15,7 @@ const COMPANY_UPDATE = "/company/update";
 const COMPANY_ADD = "/company/add";
 const COMPANY_DELETE = "/company/delete";
 const POSITION_SUBMIT = "/job/position/submit"
-
+const POSITION_TYPE = "/job/position_type/list"
 module.exports = {
     HOST,
     JOB_LISTING,
@@ -32,4 +32,5 @@ module.exports = {
     COMPANY_DELETE,
     COMPANY_UPDATE,
     POSITION_SUBMIT,
+    POSITION_TYPE,
 }
